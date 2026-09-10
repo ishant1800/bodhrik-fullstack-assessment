@@ -35,7 +35,12 @@ class User(Base):
         nullable=False,
     )
     role: Mapped[UserRole] = mapped_column(
-        SAEnum(UserRole, name="user_role", native_enum=True),
+        SAEnum(
+            UserRole,
+            name="user_role",
+            values_callable=lambda x: [e.value for e in x],
+            native_enum=True,
+        ),
         nullable=False,
     )
     created_at: Mapped[datetime] = mapped_column(

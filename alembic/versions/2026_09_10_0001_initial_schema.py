@@ -9,7 +9,6 @@ Create Date: 2026-09-10 18:00:00.000000
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
@@ -21,27 +20,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    # 1. Create Enums
-    user_role_enum = postgresql.ENUM(
-        "admin",
-        "provider",
-        "customer",
-        name="user_role",
-        create_type=False,
-    )
-    user_role_enum.create(op.get_bind(), checkfirst=True)
-
-    booking_status_enum = postgresql.ENUM(
-        "pending",
-        "confirmed",
-        "completed",
-        "cancelled",
-        name="booking_status",
-        create_type=False,
-    )
-    booking_status_enum.create(op.get_bind(), checkfirst=True)
-
-    # 2. Create users table
+    # 1. Create users table
     op.create_table(
         "users",
         sa.Column("id", sa.Uuid(), nullable=False),

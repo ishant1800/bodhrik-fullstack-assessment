@@ -22,20 +22,24 @@ bodhrik-fullstack-assessment/
 │   ├── db/
 │   │   ├── __init__.py
 │   │   ├── base.py          # SQLAlchemy 2.0 DeclarativeBase
-│   │   └── session.py       # DB engine, SessionLocal, and get_db dependency
-│   ├── models/              # SQLAlchemy ORM models (empty placeholder)
-│   ├── schemas/             # Pydantic schemas / DTOs (empty placeholder)
+│   │   └── session.py       # DB engine, SessionLocal, check_db_connection helper
+│   ├── models/              # SQLAlchemy ORM models (User, Booking, Review, enums)
+│   ├── schemas/             # Pydantic schemas (UserResponse, Booking*, Review*)
 │   ├── services/            # Business logic layer (empty placeholder)
 │   └── workers/             # Background workers & queue tasks (empty placeholder)
 ├── tests/
 │   ├── __init__.py
 │   ├── conftest.py          # Pytest fixtures (TestClient)
-│   └── test_health.py       # Tests for /health endpoints
+│   ├── test_health.py       # Tests for /health endpoints
+│   ├── test_models.py       # Tests for model metadata & in-memory constraints
+│   ├── test_schemas.py      # Tests for Pydantic schema validation
+│   └── test_postgres.py     # PostgreSQL integration tests
 ├── alembic/
 │   ├── versions/            # Database migration revisions
 │   ├── env.py               # Alembic runner reading app settings & Base.metadata
 │   └── script.py.mako       # Migration template
 ├── alembic.ini              # Alembic configuration
+├── docker-compose.yml       # Docker Compose setup for PostgreSQL 16
 ├── pyproject.toml           # Project metadata, dependencies, Ruff & Pytest configs
 ├── .env.example             # Environment variable template
 ├── .gitignore               # Git ignore rules
@@ -48,6 +52,7 @@ bodhrik-fullstack-assessment/
 
 - **Python 3.12+**
 - **pip** or **uv** package manager
+- **Docker** and **Docker Compose** (or Docker Extension)
 
 ---
 
@@ -106,6 +111,58 @@ Edit `.env` to match your local configuration if needed.
 
 ---
 
+## Local PostgreSQL Setup
+
+### 1. Start PostgreSQL
+
+Start the PostgreSQL service using Docker Compose:
+
+```powershell
+docker compose up -d postgres
+```
+
+*Alternatively, if using the VS Code / IDE **Docker Extension**, right-click `docker-compose.yml` in the file explorer and select **Compose Up**.*
+
+### 2. Check PostgreSQL Status
+
+Verify that the container is healthy and running:
+
+```powershell
+docker compose ps
+```
+
+### 3. Run Database Migrations
+
+Apply the Alembic schema migrations against PostgreSQL:
+
+```powershell
+.\.venv\Scripts\alembic.exe upgrade head
+```
+
+### 4. Verify Migration State
+
+Check the current migration version and head:
+
+```powershell
+# View current database revision
+.\.venv\Scripts\alembic.exe current
+
+# View available migration heads (expected: 0001_initial_schema)
+.\.venv\Scripts\alembic.exe heads
+```
+
+### 5. Stop PostgreSQL
+
+To stop the PostgreSQL container:
+
+```powershell
+docker compose down
+```
+
+> **Data Persistence:** The PostgreSQL database files are persisted in the `postgres_data` named Docker volume. Data remains safe across container restarts and updates until explicitly removed via `docker compose down -v`.
+
+---
+
 ## Running the API
 
 Start the FastAPI development server with hot-reloading:
@@ -126,13 +183,10 @@ Once running:
 Run the test suite using `pytest`:
 
 ```bash
-pytest
-```
-
-Run with verbose output:
-```bash
 pytest -v
 ```
+
+All existing unit tests and live PostgreSQL integration tests (when the database is running) will execute automatically.
 
 ---
 
@@ -152,18 +206,4 @@ ruff check --fix .
 Format code:
 ```bash
 ruff format .
-```
-
----
-
-## Database Migrations (Alembic)
-
-When database models are added, run migrations using:
-
-```bash
-# Generate a new migration revision
-alembic revision --autogenerate -m "migration description"
-
-# Apply migrations
-alembic upgrade head
 ```

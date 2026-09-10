@@ -14,10 +14,11 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     DEBUG: bool = False
 
-    # Database
-    DATABASE_URL: str = (
-        "postgresql+psycopg://postgres:postgres@localhost:5432/bodhrik_db"
-    )
+    # PostgreSQL Infrastructure Configuration
+    POSTGRES_USER: str = "postgres"
+    POSTGRES_PASSWORD: str = "postgres"
+    POSTGRES_DB: str = "bodhrik"
+    DATABASE_URL: str = "postgresql+psycopg://postgres:postgres@localhost:5432/bodhrik"
 
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
