@@ -11,6 +11,7 @@ from app.models.enums import UserRole
 
 if TYPE_CHECKING:
     from app.models.booking import Booking
+    from app.models.notification import Notification
     from app.models.review import Review
 
 
@@ -84,5 +85,12 @@ class User(Base):
         "Review",
         foreign_keys="[Review.provider_id]",
         back_populates="provider",
+        cascade="all, delete-orphan",
+    )
+
+    # Notifications relationship
+    notifications: Mapped[list["Notification"]] = relationship(
+        "Notification",
+        back_populates="user",
         cascade="all, delete-orphan",
     )

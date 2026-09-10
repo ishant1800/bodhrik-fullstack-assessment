@@ -1,3 +1,4 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,6 +28,11 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+
+    # Background Jobs & Notifications Configuration
+    BACKGROUND_JOBS_ENABLED: bool = True
+    BOOKING_REMINDER_MINUTES: int = Field(default=30, ge=1)
+    BACKGROUND_JOB_INTERVAL_MINUTES: int = Field(default=5, ge=1)
 
 
 settings = Settings()

@@ -6,9 +6,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.booking import Booking
-from app.models.enums import BookingStatus, UserRole
+from app.models.enums import BookingStatus, NotificationType, UserRole
 from app.models.user import User
 from app.schemas.booking import BookingCreate, BookingUpdate
+from app.services.notification_service import create_notification
 from app.services.provider_service import is_provider_available
 
 # ---------------------------------------------------------------------------
@@ -41,6 +42,29 @@ ROLE_ALLOWED_TRANSITIONS: dict[tuple[BookingStatus, BookingStatus], set[UserRole
         UserRole.ADMIN,
     },
 }
+
+
+def _notify_cancellation(db: Session, booking: Booking, actor: User) -> None:
+    """Notify affected non-actor participants of a booking cancellation."""
+    message = f"Booking for {booking.service_name} has been cancelled."
+    if actor.id != booking.customer_id:
+        create_notification(
+            db=db,
+            user_id=booking.customer_id,
+            booking_id=booking.id,
+            type=NotificationType.BOOKING_CANCELLED,
+            title="Booking Cancelled",
+            message=message,
+        )
+    if actor.id != booking.provider_id:
+        create_notification(
+            db=db,
+            user_id=booking.provider_id,
+            booking_id=booking.id,
+            type=NotificationType.BOOKING_CANCELLED,
+            title="Booking Cancelled",
+            message=message,
+        )
 
 
 def validate_status_transition(
@@ -180,6 +204,18 @@ def create_booking(
         status=BookingStatus.PENDING,
     )
     db.add(booking)
+    db.flush()
+
+    # Booking created lifecycle notification -> provider
+    create_notification(
+        db=db,
+        user_id=booking.provider_id,
+        booking_id=booking.id,
+        type=NotificationType.BOOKING_CREATED,
+        title="New Booking Request",
+        message=f"A new booking request for {booking.service_name} has been submitted.",
+    )
+
     db.commit()
     db.refresh(booking)
     return booking
@@ -291,6 +327,28 @@ def update_booking(
         )
         booking.status = booking_update.status
 
+        # Booking lifecycle notifications on status change
+        if booking.status == BookingStatus.CONFIRMED:
+            create_notification(
+                db=db,
+                user_id=booking.customer_id,
+                booking_id=booking.id,
+                type=NotificationType.BOOKING_CONFIRMED,
+                title="Booking Confirmed",
+                message=f"Your booking for {booking.service_name} has been confirmed.",
+            )
+        elif booking.status == BookingStatus.COMPLETED:
+            create_notification(
+                db=db,
+                user_id=booking.customer_id,
+                booking_id=booking.id,
+                type=NotificationType.BOOKING_COMPLETED,
+                title="Booking Completed",
+                message=f"Your booking for {booking.service_name} has been completed.",
+            )
+        elif booking.status == BookingStatus.CANCELLED:
+            _notify_cancellation(db=db, booking=booking, actor=current_user)
+
     # 2. Rescheduling validation
     if booking_update.start_time is not None or booking_update.end_time is not None:
         new_start = booking_update.start_time or booking.start_time
@@ -336,6 +394,7 @@ def cancel_booking(
     )
 
     booking.status = BookingStatus.CANCELLED
+    _notify_cancellation(db=db, booking=booking, actor=current_user)
     db.commit()
     db.refresh(booking)
     return booking

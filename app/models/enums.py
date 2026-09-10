@@ -16,3 +16,14 @@ class BookingStatus(enum.StrEnum):
     CONFIRMED = "confirmed"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
+
+
+class NotificationType(enum.StrEnum):
+    """Notification type classification."""
+
+    BOOKING_CREATED = "booking_created"
+    BOOKING_CONFIRMED = "booking_confirmed"
+    BOOKING_CANCELLED = "booking_cancelled"
+    BOOKING_REMINDER = "booking_reminder"
+    BOOKING_COMPLETED = "booking_completed"
+    BOOKING_OVERDUE = "booking_overdue"

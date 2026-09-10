@@ -20,6 +20,7 @@ from app.db.base import Base
 from app.models.enums import BookingStatus
 
 if TYPE_CHECKING:
+    from app.models.notification import Notification
     from app.models.review import Review
     from app.models.user import User
 
@@ -111,5 +112,12 @@ class Booking(Base):
         "Review",
         back_populates="booking",
         uselist=False,
+        cascade="all, delete-orphan",
+    )
+
+    # Notifications relationship
+    notifications: Mapped[list["Notification"]] = relationship(
+        "Notification",
+        back_populates="booking",
         cascade="all, delete-orphan",
     )
