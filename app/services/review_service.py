@@ -140,7 +140,11 @@ def list_reviews(
     if rating is not None:
         stmt = stmt.where(Review.rating == rating)
 
-    stmt = stmt.order_by(Review.created_at.desc()).offset(skip).limit(limit)
+    stmt = (
+        stmt.order_by(Review.created_at.desc(), Review.id.desc())
+        .offset(skip)
+        .limit(limit)
+    )
     return list(db.execute(stmt).scalars().all())
 
 
@@ -228,9 +232,13 @@ def update_review(
     if review_update.comment is not None:
         review.comment = review_update.comment
 
-    db.commit()
-    db.refresh(review)
-    return review
+    try:
+        db.commit()
+        db.refresh(review)
+        return review
+    except Exception:
+        db.rollback()
+        raise
 
 
 def delete_review(
@@ -260,5 +268,9 @@ def delete_review(
             detail="Not authorized to delete this review",
         )
 
-    db.delete(review)
-    db.commit()
+    try:
+        db.delete(review)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise

@@ -1,5 +1,6 @@
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.security import hash_password, verify_password
@@ -31,9 +32,16 @@ def register_user(db: Session, user_in: UserRegister) -> User:
         role=UserRole.CUSTOMER,
     )
     db.add(user)
-    db.commit()
-    db.refresh(user)
-    return user
+    try:
+        db.commit()
+        db.refresh(user)
+        return user
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A user with this email address already exists",
+        )
 
 
 def authenticate_user(db: Session, credentials: UserLogin) -> User:

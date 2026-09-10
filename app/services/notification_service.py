@@ -59,7 +59,11 @@ def list_notifications(
     stmt = select(Notification).where(Notification.user_id == user_id)
     if unread_only:
         stmt = stmt.where(Notification.is_read.is_(False))
-    stmt = stmt.order_by(Notification.created_at.desc()).offset(skip).limit(limit)
+    stmt = (
+        stmt.order_by(Notification.created_at.desc(), Notification.id.desc())
+        .offset(skip)
+        .limit(limit)
+    )
     return list(db.execute(stmt).scalars().all())
 
 
@@ -91,8 +95,12 @@ def mark_notification_as_read(
     if not notification.is_read:
         notification.is_read = True
         notification.read_at = datetime.now(UTC)
-        db.commit()
-        db.refresh(notification)
+        try:
+            db.commit()
+            db.refresh(notification)
+        except Exception:
+            db.rollback()
+            raise
 
     return notification
 
@@ -118,5 +126,9 @@ def mark_all_as_read(
         )
     )
     result = db.execute(stmt)
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     return result.rowcount

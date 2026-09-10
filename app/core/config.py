@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -33,6 +33,32 @@ class Settings(BaseSettings):
     BACKGROUND_JOBS_ENABLED: bool = True
     BOOKING_REMINDER_MINUTES: int = Field(default=30, ge=1)
     BACKGROUND_JOB_INTERVAL_MINUTES: int = Field(default=5, ge=1)
+
+    # CORS Security Configuration
+    CORS_ORIGINS: list[str] = [
+        "http://localhost",
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:8000",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:8000",
+    ]
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def assemble_cors_origins(cls, v: object) -> list[str] | object:
+        """Parse comma-separated string or JSON list into list of origins."""
+        if isinstance(v, str):
+            stripped = v.strip()
+            if stripped.startswith("["):
+                import json
+
+                return json.loads(stripped)
+            return [i.strip() for i in stripped.split(",") if i.strip()]
+        if isinstance(v, (list, set, tuple)):
+            return list(v)
+        return v
 
 
 settings = Settings()

@@ -2,6 +2,7 @@
 
 from app.schemas.auth import TokenResponse, UserLogin, UserRegister
 from app.schemas.booking import BookingCreate, BookingResponse, BookingUpdate
+from app.schemas.error import ErrorResponse, ValidationErrorDetail
 from app.schemas.notification import MarkAllReadResponse, NotificationResponse
 from app.schemas.provider import ProviderAvailabilityResponse, ProviderResponse
 from app.schemas.review import (
@@ -16,6 +17,7 @@ __all__ = [
     "BookingCreate",
     "BookingResponse",
     "BookingUpdate",
+    "ErrorResponse",
     "MarkAllReadResponse",
     "NotificationResponse",
     "ProviderAvailabilityResponse",
@@ -28,4 +30,5 @@ __all__ = [
     "UserLogin",
     "UserRegister",
     "UserResponse",
+    "ValidationErrorDetail",
 ]

@@ -26,8 +26,8 @@ class UserRegister(BaseModel):
 class UserLogin(BaseModel):
     """Schema for user login credentials."""
 
-    email: str = Field(..., description="Registered email address")
-    password: str = Field(..., description="Password")
+    email: str = Field(..., max_length=255, description="Registered email address")
+    password: str = Field(..., max_length=128, description="Password")
 
     @field_validator("email")
     @classmethod

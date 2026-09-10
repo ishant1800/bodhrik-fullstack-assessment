@@ -216,9 +216,13 @@ def create_booking(
         message=f"A new booking request for {booking.service_name} has been submitted.",
     )
 
-    db.commit()
-    db.refresh(booking)
-    return booking
+    try:
+        db.commit()
+        db.refresh(booking)
+        return booking
+    except Exception:
+        db.rollback()
+        raise
 
 
 def get_booking_by_id(
@@ -274,7 +278,11 @@ def list_bookings(
     if status_filter is not None:
         stmt = stmt.where(Booking.status == status_filter)
 
-    stmt = stmt.order_by(Booking.start_time.asc()).offset(skip).limit(limit)
+    stmt = (
+        stmt.order_by(Booking.start_time.asc(), Booking.id.asc())
+        .offset(skip)
+        .limit(limit)
+    )
     return list(db.execute(stmt).scalars().all())
 
 
@@ -374,9 +382,13 @@ def update_booking(
     if booking_update.service_name is not None:
         booking.service_name = booking_update.service_name
 
-    db.commit()
-    db.refresh(booking)
-    return booking
+    try:
+        db.commit()
+        db.refresh(booking)
+        return booking
+    except Exception:
+        db.rollback()
+        raise
 
 
 def cancel_booking(
@@ -395,6 +407,10 @@ def cancel_booking(
 
     booking.status = BookingStatus.CANCELLED
     _notify_cancellation(db=db, booking=booking, actor=current_user)
-    db.commit()
-    db.refresh(booking)
-    return booking
+    try:
+        db.commit()
+        db.refresh(booking)
+        return booking
+    except Exception:
+        db.rollback()
+        raise

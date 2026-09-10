@@ -29,7 +29,7 @@ def list_providers(
             )
         )
 
-    stmt = stmt.order_by(User.name.asc()).offset(skip).limit(limit)
+    stmt = stmt.order_by(User.name.asc(), User.id.asc()).offset(skip).limit(limit)
     return list(db.execute(stmt).scalars().all())
 
 
