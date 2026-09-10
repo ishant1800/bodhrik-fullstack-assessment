@@ -1,24 +1,37 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ReviewCreate(BaseModel):
-    """Schema for submitting a review for a completed booking."""
+    """Schema for submitting a review for a completed booking.
 
-    booking_id: uuid.UUID
-    customer_id: uuid.UUID
-    provider_id: uuid.UUID
+    Note: customer_id and provider_id are strictly inferred from the
+    authenticated user and referenced booking, and are omitted from client requests.
+    """
+
+    booking_id: uuid.UUID = Field(
+        ..., description="UUID of completed booking to review"
+    )
     rating: int = Field(..., ge=1, le=5, description="Rating score between 1 and 5")
-    comment: str | None = None
+    comment: str | None = Field(
+        default=None, max_length=2000, description="Optional customer review comment"
+    )
 
-    @model_validator(mode="after")
-    def validate_review_parties(self) -> "ReviewCreate":
-        """Ensure customer cannot review themselves as provider."""
-        if self.customer_id == self.provider_id:
-            raise ValueError("customer_id cannot be equal to provider_id")
-        return self
+
+class ReviewUpdate(BaseModel):
+    """Schema for updating an existing review.
+
+    Only rating and comment may be modified. Ownership fields are strictly immutable.
+    """
+
+    rating: int | None = Field(
+        default=None, ge=1, le=5, description="Updated rating score between 1 and 5"
+    )
+    comment: str | None = Field(
+        default=None, max_length=2000, description="Updated customer review comment"
+    )
 
 
 class ReviewResponse(BaseModel):
@@ -34,3 +47,16 @@ class ReviewResponse(BaseModel):
     comment: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class ProviderReviewSummary(BaseModel):
+    """Schema representing aggregated review metrics for a service provider."""
+
+    provider_id: uuid.UUID
+    review_count: int = Field(..., ge=0, description="Total number of reviews")
+    average_rating: float = Field(
+        ..., ge=0.0, le=5.0, description="Average rating score"
+    )
+    rating_distribution: dict[str, int] = Field(
+        ..., description="Count of reviews for each score from '1' to '5'"
+    )

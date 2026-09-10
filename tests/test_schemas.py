@@ -133,8 +133,6 @@ def test_review_create_valid_rating_range(rating: int) -> None:
     """Verify ratings from 1 to 5 are accepted."""
     review = ReviewCreate(
         booking_id=uuid.uuid4(),
-        customer_id=uuid.uuid4(),
-        provider_id=uuid.uuid4(),
         rating=rating,
         comment="Great service!",
     )
@@ -147,21 +145,18 @@ def test_review_create_invalid_rating(invalid_rating: int) -> None:
     with pytest.raises(ValidationError) as exc_info:
         ReviewCreate(
             booking_id=uuid.uuid4(),
-            customer_id=uuid.uuid4(),
-            provider_id=uuid.uuid4(),
             rating=invalid_rating,
         )
     assert "rating" in str(exc_info.value)
 
 
-def test_review_customer_equals_provider() -> None:
-    """Verify customer cannot submit a review to themselves as provider."""
-    same_user_id = uuid.uuid4()
+def test_review_create_comment_max_length_exceeded() -> None:
+    """Verify comment exceeding 2000 characters raises ValidationError."""
+    too_long_comment = "a" * 2001
     with pytest.raises(ValidationError) as exc_info:
         ReviewCreate(
             booking_id=uuid.uuid4(),
-            customer_id=same_user_id,
-            provider_id=same_user_id,
             rating=5,
+            comment=too_long_comment,
         )
-    assert "customer_id cannot be equal to provider_id" in str(exc_info.value)
+    assert "comment" in str(exc_info.value)
