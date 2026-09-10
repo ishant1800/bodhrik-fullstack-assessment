@@ -56,7 +56,6 @@ def test_booking_create_valid() -> None:
     end = start + timedelta(hours=2)
 
     booking = BookingCreate(
-        customer_id=uuid.uuid4(),
         provider_id=uuid.uuid4(),
         service_name="Deep House Cleaning",
         start_time=start,
@@ -73,7 +72,6 @@ def test_booking_invalid_time_range_end_before_start() -> None:
 
     with pytest.raises(ValidationError) as exc_info:
         BookingCreate(
-            customer_id=uuid.uuid4(),
             provider_id=uuid.uuid4(),
             service_name="Service",
             start_time=start,
@@ -88,7 +86,6 @@ def test_booking_invalid_time_range_end_equals_start() -> None:
 
     with pytest.raises(ValidationError) as exc_info:
         BookingCreate(
-            customer_id=uuid.uuid4(),
             provider_id=uuid.uuid4(),
             service_name="Service",
             start_time=start,
@@ -97,21 +94,19 @@ def test_booking_invalid_time_range_end_equals_start() -> None:
     assert "end_time must be after start_time" in str(exc_info.value)
 
 
-def test_booking_customer_equals_provider() -> None:
-    """Verify customer_id cannot be identical to provider_id."""
-    same_id = uuid.uuid4()
-    start = datetime.now(UTC) + timedelta(days=1)
-    end = start + timedelta(hours=1)
+def test_booking_create_timezone_naive_rejected() -> None:
+    """Verify timezone-naive datetimes in BookingCreate raise validation error."""
+    naive_start = datetime(2026, 10, 1, 10, 0)
+    naive_end = datetime(2026, 10, 1, 12, 0)
 
     with pytest.raises(ValidationError) as exc_info:
         BookingCreate(
-            customer_id=same_id,
-            provider_id=same_id,
-            service_name="Self Booking",
-            start_time=start,
-            end_time=end,
+            provider_id=uuid.uuid4(),
+            service_name="Service",
+            start_time=naive_start,
+            end_time=naive_end,
         )
-    assert "customer_id cannot be equal to provider_id" in str(exc_info.value)
+    assert "timezone-aware" in str(exc_info.value)
 
 
 def test_booking_update_time_range_validation() -> None:
