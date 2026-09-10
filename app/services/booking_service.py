@@ -9,6 +9,7 @@ from app.models.booking import Booking
 from app.models.enums import BookingStatus, UserRole
 from app.models.user import User
 from app.schemas.booking import BookingCreate, BookingUpdate
+from app.services.provider_service import is_provider_available
 
 # ---------------------------------------------------------------------------
 # Centralized Status Transition Rules
@@ -120,17 +121,13 @@ def check_provider_conflict(
     Raises:
         HTTPException 409: If an active overlapping booking exists.
     """
-    stmt = select(Booking).where(
-        Booking.provider_id == provider_id,
-        Booking.status != BookingStatus.CANCELLED,
-        Booking.start_time < end_time,
-        Booking.end_time > start_time,
-    )
-    if exclude_booking_id is not None:
-        stmt = stmt.where(Booking.id != exclude_booking_id)
-
-    conflict = db.execute(stmt).scalars().first()
-    if conflict is not None:
+    if not is_provider_available(
+        db=db,
+        provider_id=provider_id,
+        start_time=start_time,
+        end_time=end_time,
+        exclude_booking_id=exclude_booking_id,
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Provider has an overlapping booking for the requested time slot",
