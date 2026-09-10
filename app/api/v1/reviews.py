@@ -8,7 +8,11 @@ from app.db.session import get_db
 from app.models.review import Review
 from app.models.user import User
 from app.schemas.review import ReviewCreate, ReviewResponse, ReviewUpdate
-from app.services import review_service
+from app.schemas.review_summary import (
+    ReviewSummaryJobRequest,
+    ReviewSummaryJobResponse,
+)
+from app.services import review_service, review_summary_service
 
 router = APIRouter()
 
@@ -72,6 +76,43 @@ def list_reviews(
         skip=skip,
         limit=limit,
     )
+
+
+@router.post(
+    "/summarize",
+    response_model=ReviewSummaryJobResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Trigger review summarisation job for a service provider",
+)
+def trigger_review_summary(
+    request_in: ReviewSummaryJobRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ReviewSummaryJobResponse:
+    """Enqueue an asynchronous task to summarize reviews for a service provider.
+
+    - Accessible to all authenticated users (Customer, Provider, Admin).
+    - Requires provider_id to exist and belong to an active service provider.
+    - Queued in Redis and processed asynchronously by the background worker.
+    """
+    return review_summary_service.enqueue_summary_job(
+        db=db,
+        provider_id=request_in.provider_id,
+    )
+
+
+@router.get(
+    "/summarize/{job_id}",
+    response_model=ReviewSummaryJobResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Retrieve review summarisation job status and result",
+)
+def get_review_summary_job(
+    job_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+) -> ReviewSummaryJobResponse:
+    """Retrieve the status and generated summary of an asynchronous job."""
+    return review_summary_service.get_summary_job(job_id=job_id)
 
 
 @router.get(

@@ -414,3 +414,71 @@ def cancel_booking(
     except Exception:
         db.rollback()
         raise
+
+
+def delete_booking(
+    db: Session,
+    booking_id: uuid.UUID,
+    current_user: User,
+) -> None:
+    """Execute business-safe deletion of a booking reservation.
+
+    Preserves historical business records by preventing hard deletion.
+    - PENDING bookings are safely transitioned to CANCELLED and return 204.
+    - CONFIRMED, COMPLETED, or already CANCELLED bookings are rejected.
+    - Restricted to the owning customer or platform administrator.
+    """
+    booking = db.get(Booking, booking_id)
+    if booking is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Booking not found",
+        )
+
+    if current_user.role == UserRole.PROVIDER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Providers are not permitted to delete bookings",
+        )
+
+    if (
+        current_user.role == UserRole.CUSTOMER
+        and booking.customer_id != current_user.id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to delete this booking",
+        )
+
+    if booking.status == BookingStatus.COMPLETED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Completed bookings are historical business records and cannot "
+                "be deleted"
+            ),
+        )
+
+    if booking.status == BookingStatus.CONFIRMED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Confirmed bookings cannot be deleted directly; "
+                "please use the cancellation workflow"
+            ),
+        )
+
+    if booking.status == BookingStatus.CANCELLED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Booking is already cancelled",
+        )
+
+    booking.status = BookingStatus.CANCELLED
+    _notify_cancellation(db=db, booking=booking, actor=current_user)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return None

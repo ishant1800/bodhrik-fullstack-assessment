@@ -139,3 +139,26 @@ def cancel_booking(
         booking_id=booking_id,
         current_user=current_user,
     )
+
+
+@router.delete(
+    "/{booking_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a booking (business-safe cancellation)",
+)
+def delete_booking(
+    booking_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """Execute business-safe deletion of a booking reservation.
+
+    - PENDING bookings are safely transitioned to CANCELLED.
+    - CONFIRMED, COMPLETED, or already CANCELLED bookings cannot be deleted.
+    - Historical business records, reviews, and notifications are preserved.
+    """
+    booking_service.delete_booking(
+        db=db,
+        booking_id=booking_id,
+        current_user=current_user,
+    )

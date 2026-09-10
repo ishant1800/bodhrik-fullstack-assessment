@@ -11,6 +11,11 @@ from app.schemas.review import (
     ReviewResponse,
     ReviewUpdate,
 )
+from app.schemas.review_summary import (
+    ReviewSummaryJobRequest,
+    ReviewSummaryJobResponse,
+    ReviewSummaryResult,
+)
 from app.schemas.user import UserResponse
 
 __all__ = [
@@ -25,6 +30,9 @@ __all__ = [
     "ProviderReviewSummary",
     "ReviewCreate",
     "ReviewResponse",
+    "ReviewSummaryJobRequest",
+    "ReviewSummaryJobResponse",
+    "ReviewSummaryResult",
     "ReviewUpdate",
     "TokenResponse",
     "UserLogin",

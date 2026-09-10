@@ -884,3 +884,217 @@ def test_cancel_booking_unauthorized_user_forbidden(
         headers={"Authorization": c2_token},
     )
     assert res.status_code == status.HTTP_403_FORBIDDEN
+
+
+# ===========================================================================
+# Booking DELETE (Business-Safe Cancellation) Tests
+# ===========================================================================
+
+
+def test_delete_booking_pending_customer_success(
+    client: TestClient, db: Session
+) -> None:
+    """Verify customer can delete own PENDING booking (transitions to CANCELLED)."""
+    c, c_token = create_user_with_token(db, UserRole.CUSTOMER)
+    p, _ = create_user_with_token(db, UserRole.PROVIDER)
+
+    t = datetime.now(UTC) + timedelta(days=20)
+    create_res = client.post(
+        "/api/v1/bookings",
+        json={
+            "provider_id": str(p.id),
+            "service_name": "Safe Delete Test",
+            "start_time": t.isoformat(),
+            "end_time": (t + timedelta(hours=1)).isoformat(),
+        },
+        headers={"Authorization": c_token},
+    )
+    assert create_res.status_code == status.HTTP_201_CREATED
+    booking_id = create_res.json()["id"]
+
+    # DELETE returns 204 No Content
+    del_res = client.delete(
+        f"/api/v1/bookings/{booking_id}",
+        headers={"Authorization": c_token},
+    )
+    assert del_res.status_code == status.HTTP_204_NO_CONTENT
+
+    # Verify status is now CANCELLED and booking record is preserved
+    get_res = client.get(
+        f"/api/v1/bookings/{booking_id}",
+        headers={"Authorization": c_token},
+    )
+    assert get_res.status_code == status.HTTP_200_OK
+    assert get_res.json()["status"] == "cancelled"
+
+
+def test_delete_booking_confirmed_rejected(client: TestClient, db: Session) -> None:
+    """Verify confirmed bookings cannot be deleted directly via DELETE verb."""
+    c, c_token = create_user_with_token(db, UserRole.CUSTOMER)
+    p, p_token = create_user_with_token(db, UserRole.PROVIDER)
+
+    t = datetime.now(UTC) + timedelta(days=21)
+    create_res = client.post(
+        "/api/v1/bookings",
+        json={
+            "provider_id": str(p.id),
+            "service_name": "Confirmed Delete Test",
+            "start_time": t.isoformat(),
+            "end_time": (t + timedelta(hours=1)).isoformat(),
+        },
+        headers={"Authorization": c_token},
+    )
+    booking_id = create_res.json()["id"]
+
+    # Provider confirms booking
+    client.patch(
+        f"/api/v1/bookings/{booking_id}",
+        json={"status": "confirmed"},
+        headers={"Authorization": p_token},
+    )
+
+    # Customer tries DELETE on confirmed booking
+    del_res = client.delete(
+        f"/api/v1/bookings/{booking_id}",
+        headers={"Authorization": c_token},
+    )
+    assert del_res.status_code == status.HTTP_400_BAD_REQUEST
+    assert "Confirmed bookings cannot be deleted directly" in del_res.json()["detail"]
+
+
+def test_delete_booking_completed_rejected(client: TestClient, db: Session) -> None:
+    """Verify completed bookings cannot be deleted to protect historical records."""
+    c, c_token = create_user_with_token(db, UserRole.CUSTOMER)
+    p, p_token = create_user_with_token(db, UserRole.PROVIDER)
+
+    t = datetime.now(UTC) + timedelta(days=22)
+    create_res = client.post(
+        "/api/v1/bookings",
+        json={
+            "provider_id": str(p.id),
+            "service_name": "Completed Delete Test",
+            "start_time": t.isoformat(),
+            "end_time": (t + timedelta(hours=1)).isoformat(),
+        },
+        headers={"Authorization": c_token},
+    )
+    booking_id = create_res.json()["id"]
+
+    # Confirm and complete
+    client.patch(
+        f"/api/v1/bookings/{booking_id}",
+        json={"status": "confirmed"},
+        headers={"Authorization": p_token},
+    )
+    client.patch(
+        f"/api/v1/bookings/{booking_id}",
+        json={"status": "completed"},
+        headers={"Authorization": p_token},
+    )
+
+    # Attempt DELETE
+    del_res = client.delete(
+        f"/api/v1/bookings/{booking_id}",
+        headers={"Authorization": c_token},
+    )
+    assert del_res.status_code == status.HTTP_400_BAD_REQUEST
+    assert "historical business records" in del_res.json()["detail"]
+
+
+def test_delete_booking_already_cancelled_rejected(
+    client: TestClient, db: Session
+) -> None:
+    """Verify deleting an already cancelled booking returns 400 Bad Request."""
+    c, c_token = create_user_with_token(db, UserRole.CUSTOMER)
+    p, _ = create_user_with_token(db, UserRole.PROVIDER)
+
+    t = datetime.now(UTC) + timedelta(days=23)
+    create_res = client.post(
+        "/api/v1/bookings",
+        json={
+            "provider_id": str(p.id),
+            "service_name": "Already Cancelled Delete Test",
+            "start_time": t.isoformat(),
+            "end_time": (t + timedelta(hours=1)).isoformat(),
+        },
+        headers={"Authorization": c_token},
+    )
+    booking_id = create_res.json()["id"]
+
+    # Delete once -> 204
+    res1 = client.delete(
+        f"/api/v1/bookings/{booking_id}",
+        headers={"Authorization": c_token},
+    )
+    assert res1.status_code == status.HTTP_204_NO_CONTENT
+
+    # Delete again -> 400
+    res2 = client.delete(
+        f"/api/v1/bookings/{booking_id}",
+        headers={"Authorization": c_token},
+    )
+    assert res2.status_code == status.HTTP_400_BAD_REQUEST
+    assert "already cancelled" in res2.json()["detail"]
+
+
+def test_delete_booking_unauthorized_user_and_provider_forbidden(
+    client: TestClient, db: Session
+) -> None:
+    """Verify unrelated customer and provider are forbidden from deleting booking."""
+    c1, c1_token = create_user_with_token(db, UserRole.CUSTOMER)
+    _, c2_token = create_user_with_token(db, UserRole.CUSTOMER)
+    p, p_token = create_user_with_token(db, UserRole.PROVIDER)
+
+    t = datetime.now(UTC) + timedelta(days=24)
+    create_res = client.post(
+        "/api/v1/bookings",
+        json={
+            "provider_id": str(p.id),
+            "service_name": "Unauth Delete Test",
+            "start_time": t.isoformat(),
+            "end_time": (t + timedelta(hours=1)).isoformat(),
+        },
+        headers={"Authorization": c1_token},
+    )
+    booking_id = create_res.json()["id"]
+
+    # Unrelated customer -> 403
+    res_c2 = client.delete(
+        f"/api/v1/bookings/{booking_id}",
+        headers={"Authorization": c2_token},
+    )
+    assert res_c2.status_code == status.HTTP_403_FORBIDDEN
+
+    # Provider -> 403
+    res_p = client.delete(
+        f"/api/v1/bookings/{booking_id}",
+        headers={"Authorization": p_token},
+    )
+    assert res_p.status_code == status.HTTP_403_FORBIDDEN
+
+
+def test_delete_booking_admin_success(client: TestClient, db: Session) -> None:
+    """Verify admin can delete a PENDING booking."""
+    c, c_token = create_user_with_token(db, UserRole.CUSTOMER)
+    p, _ = create_user_with_token(db, UserRole.PROVIDER)
+    _, admin_token = create_user_with_token(db, UserRole.ADMIN)
+
+    t = datetime.now(UTC) + timedelta(days=25)
+    create_res = client.post(
+        "/api/v1/bookings",
+        json={
+            "provider_id": str(p.id),
+            "service_name": "Admin Delete Test",
+            "start_time": t.isoformat(),
+            "end_time": (t + timedelta(hours=1)).isoformat(),
+        },
+        headers={"Authorization": c_token},
+    )
+    booking_id = create_res.json()["id"]
+
+    # Admin deletes -> 204
+    del_res = client.delete(
+        f"/api/v1/bookings/{booking_id}",
+        headers={"Authorization": admin_token},
+    )
+    assert del_res.status_code == status.HTTP_204_NO_CONTENT
