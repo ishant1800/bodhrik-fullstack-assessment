@@ -1,5 +1,6 @@
 """Pydantic request and response schemas."""
 
+from app.schemas.auth import TokenResponse, UserLogin, UserRegister
 from app.schemas.booking import BookingCreate, BookingResponse, BookingUpdate
 from app.schemas.review import ReviewCreate, ReviewResponse
 from app.schemas.user import UserResponse
@@ -10,5 +11,8 @@ __all__ = [
     "BookingUpdate",
     "ReviewCreate",
     "ReviewResponse",
+    "TokenResponse",
+    "UserLogin",
+    "UserRegister",
     "UserResponse",
 ]

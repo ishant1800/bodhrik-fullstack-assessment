@@ -20,12 +20,13 @@ class Settings(BaseSettings):
     POSTGRES_DB: str = "bodhrik"
     DATABASE_URL: str = "postgresql+psycopg://postgres:postgres@localhost:5432/bodhrik"
 
-    # Redis
+    # Redis (placeholder for later milestone)
     REDIS_URL: str = "redis://localhost:6379/0"
 
-    # JWT Authentication (scaffolding for future step)
-    JWT_SECRET: str = "super-secret-key-change-in-production-minimum-32-chars-length"
+    # JWT Security Configuration (secret must come from environment / .env)
+    JWT_SECRET_KEY: str
     JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
 
 settings = Settings()

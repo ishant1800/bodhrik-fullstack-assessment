@@ -90,11 +90,13 @@ def test_db_enforces_booking_end_after_start(in_memory_db: Session) -> None:
         name="Customer Alice",
         email="alice@example.com",
         role=UserRole.CUSTOMER,
+        password_hash="test_password_hash",
     )
     provider = User(
         name="Provider Bob",
         email="bob@example.com",
         role=UserRole.PROVIDER,
+        password_hash="test_password_hash",
     )
     in_memory_db.add_all([customer, provider])
     in_memory_db.commit()
@@ -122,6 +124,7 @@ def test_db_enforces_customer_not_provider(in_memory_db: Session) -> None:
         name="Solo User",
         email="solo@example.com",
         role=UserRole.CUSTOMER,
+        password_hash="test_password_hash",
     )
     in_memory_db.add(user)
     in_memory_db.commit()
@@ -145,8 +148,18 @@ def test_db_enforces_customer_not_provider(in_memory_db: Session) -> None:
 
 def test_db_enforces_review_rating_range(in_memory_db: Session) -> None:
     """Verify relational engine rejects reviews with rating outside [1, 5]."""
-    customer = User(name="Cust", email="c@example.com", role=UserRole.CUSTOMER)
-    provider = User(name="Prov", email="p@example.com", role=UserRole.PROVIDER)
+    customer = User(
+        name="Cust",
+        email="c@example.com",
+        role=UserRole.CUSTOMER,
+        password_hash="test_password_hash",
+    )
+    provider = User(
+        name="Prov",
+        email="p@example.com",
+        role=UserRole.PROVIDER,
+        password_hash="test_password_hash",
+    )
     in_memory_db.add_all([customer, provider])
     in_memory_db.commit()
 
@@ -190,8 +203,18 @@ def test_db_enforces_review_rating_range(in_memory_db: Session) -> None:
 
 def test_db_enforces_one_review_per_booking(in_memory_db: Session) -> None:
     """Verify relational engine rejects a second review for the same booking."""
-    customer = User(name="Cust", email="c2@example.com", role=UserRole.CUSTOMER)
-    provider = User(name="Prov", email="p2@example.com", role=UserRole.PROVIDER)
+    customer = User(
+        name="Cust",
+        email="c2@example.com",
+        role=UserRole.CUSTOMER,
+        password_hash="test_password_hash",
+    )
+    provider = User(
+        name="Prov",
+        email="p2@example.com",
+        role=UserRole.PROVIDER,
+        password_hash="test_password_hash",
+    )
     in_memory_db.add_all([customer, provider])
     in_memory_db.commit()
 

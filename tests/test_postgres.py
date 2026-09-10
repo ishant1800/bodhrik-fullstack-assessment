@@ -1,6 +1,9 @@
+import secrets
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
+import bcrypt
 import pytest
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import IntegrityError
@@ -91,6 +94,67 @@ def test_postgres_enums_exist() -> None:
     ]
 
 
+def test_postgres_password_hash_column_metadata() -> None:
+    """Verify users.password_hash column is VARCHAR(255) and NOT NULL."""
+    inspector = inspect(engine)
+    columns = {col["name"]: col for col in inspector.get_columns("users")}
+    assert "password_hash" in columns
+    assert columns["password_hash"]["nullable"] is False
+    assert str(columns["password_hash"]["type"]).startswith("VARCHAR")
+
+
+def test_postgres_migration_backfill_generates_valid_bcrypt_hash(
+    db_session: Session,
+) -> None:
+    """Verify migration backfill generates a valid, unusable bcrypt hash."""
+    random_secret = secrets.token_hex(32)
+    unusable_hash = bcrypt.hashpw(
+        random_secret.encode("utf-8"), bcrypt.gensalt()
+    ).decode("utf-8")
+
+    assert unusable_hash.startswith("$2b$")
+    assert len(unusable_hash) == 60
+
+    # Persist a user with the backfilled hash format
+    user = User(
+        name="Legacy Migrated User",
+        email="migrated_legacy@example.com",
+        role=UserRole.CUSTOMER,
+        password_hash=unusable_hash,
+    )
+    db_session.add(user)
+    db_session.flush()
+
+    persisted = db_session.get(User, user.id)
+    assert persisted is not None
+    assert persisted.password_hash.startswith("$2b$")
+    assert len(persisted.password_hash) == 60
+    # Verify standard bcrypt verification executes cleanly and fails (unusable password)
+    assert (
+        bcrypt.checkpw(b"any_password_attempt", persisted.password_hash.encode("utf-8"))
+        is False
+    )
+    assert (
+        bcrypt.checkpw(b"UNSET_PASSWORD_HASH", persisted.password_hash.encode("utf-8"))
+        is False
+    )
+
+
+def test_migration_0002_uses_bcrypt_unusable_hash() -> None:
+    """Verify migration 0002 does not use plaintext sentinel string."""
+    migration_file = (
+        Path(__file__).parent.parent
+        / "alembic"
+        / "versions"
+        / "2026_09_10_0002_add_user_password_hash.py"
+    )
+    content = migration_file.read_text(encoding="utf-8")
+    assert "UNSET_PASSWORD_HASH" not in content
+    assert "bcrypt.hashpw" in content
+    assert "bcrypt.gensalt" in content
+    assert "secrets.token_hex" in content
+
+
 # ============================================================================
 # 3. Foreign Key Constraints
 # ============================================================================
@@ -134,8 +198,18 @@ def test_postgres_foreign_keys_configured() -> None:
 
 def test_postgres_enforces_end_time_after_start_time(db_session: Session) -> None:
     """Verify PostgreSQL rejects bookings where end_time <= start_time."""
-    customer = User(name="Cust A", email="cust_a@example.com", role=UserRole.CUSTOMER)
-    provider = User(name="Prov A", email="prov_a@example.com", role=UserRole.PROVIDER)
+    customer = User(
+        name="Cust A",
+        email="cust_a@example.com",
+        role=UserRole.CUSTOMER,
+        password_hash="test_password_hash",
+    )
+    provider = User(
+        name="Prov A",
+        email="prov_a@example.com",
+        role=UserRole.PROVIDER,
+        password_hash="test_password_hash",
+    )
     db_session.add_all([customer, provider])
     db_session.flush()
 
@@ -161,7 +235,12 @@ def test_postgres_enforces_customer_not_equal_provider(
     db_session: Session,
 ) -> None:
     """Verify PostgreSQL rejects bookings where customer_id == provider_id."""
-    user = User(name="Self User", email="self@example.com", role=UserRole.CUSTOMER)
+    user = User(
+        name="Self User",
+        email="self@example.com",
+        role=UserRole.CUSTOMER,
+        password_hash="test_password_hash",
+    )
     db_session.add(user)
     db_session.flush()
 
@@ -185,8 +264,18 @@ def test_postgres_enforces_customer_not_equal_provider(
 
 def test_postgres_enforces_review_rating_bounds(db_session: Session) -> None:
     """Verify PostgreSQL CheckConstraint rejects reviews outside [1, 5]."""
-    customer = User(name="Cust B", email="cust_b@example.com", role=UserRole.CUSTOMER)
-    provider = User(name="Prov B", email="prov_b@example.com", role=UserRole.PROVIDER)
+    customer = User(
+        name="Cust B",
+        email="cust_b@example.com",
+        role=UserRole.CUSTOMER,
+        password_hash="test_password_hash",
+    )
+    provider = User(
+        name="Prov B",
+        email="prov_b@example.com",
+        role=UserRole.PROVIDER,
+        password_hash="test_password_hash",
+    )
     db_session.add_all([customer, provider])
     db_session.flush()
 
@@ -238,8 +327,18 @@ def test_postgres_enforces_review_rating_bounds(db_session: Session) -> None:
 
 def test_postgres_enforces_one_review_per_booking(db_session: Session) -> None:
     """Verify PostgreSQL unique constraint rejects duplicate review for same booking."""
-    customer = User(name="Cust C", email="cust_c@example.com", role=UserRole.CUSTOMER)
-    provider = User(name="Prov C", email="prov_c@example.com", role=UserRole.PROVIDER)
+    customer = User(
+        name="Cust C",
+        email="cust_c@example.com",
+        role=UserRole.CUSTOMER,
+        password_hash="test_password_hash",
+    )
+    provider = User(
+        name="Prov C",
+        email="prov_c@example.com",
+        role=UserRole.PROVIDER,
+        password_hash="test_password_hash",
+    )
     db_session.add_all([customer, provider])
     db_session.flush()
 
@@ -281,8 +380,18 @@ def test_postgres_cascade_delete_booking_deletes_review(
     db_session: Session,
 ) -> None:
     """Verify deleting a booking cascades to automatically delete its review."""
-    customer = User(name="Cust D", email="cust_d@example.com", role=UserRole.CUSTOMER)
-    provider = User(name="Prov D", email="prov_d@example.com", role=UserRole.PROVIDER)
+    customer = User(
+        name="Cust D",
+        email="cust_d@example.com",
+        role=UserRole.CUSTOMER,
+        password_hash="test_password_hash",
+    )
+    provider = User(
+        name="Prov D",
+        email="prov_d@example.com",
+        role=UserRole.PROVIDER,
+        password_hash="test_password_hash",
+    )
     db_session.add_all([customer, provider])
     db_session.flush()
 
@@ -319,8 +428,18 @@ def test_postgres_cascade_delete_user_deletes_bookings_and_reviews(
     db_session: Session,
 ) -> None:
     """Verify deleting a customer cascades to delete their bookings and reviews."""
-    customer = User(name="Cust E", email="cust_e@example.com", role=UserRole.CUSTOMER)
-    provider = User(name="Prov E", email="prov_e@example.com", role=UserRole.PROVIDER)
+    customer = User(
+        name="Cust E",
+        email="cust_e@example.com",
+        role=UserRole.CUSTOMER,
+        password_hash="test_password_hash",
+    )
+    provider = User(
+        name="Prov E",
+        email="prov_e@example.com",
+        role=UserRole.PROVIDER,
+        password_hash="test_password_hash",
+    )
     db_session.add_all([customer, provider])
     db_session.flush()
 
